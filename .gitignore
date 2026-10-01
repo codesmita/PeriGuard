@@ -1,0 +1,19 @@
+# C/C++ build files
+*.o
+*.a
+*.so
+
+# Linux kernel module build files
+*.ko
+*.mod
+*.mod.c
+*.symvers
+*.order
+*.cmd
+.tmp_versions/
+
+# Executable files
+*.out
+
+# Temporary files
+*.tmp
