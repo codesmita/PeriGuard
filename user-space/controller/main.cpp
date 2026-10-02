@@ -1,54 +1,69 @@
 #include <iostream>
 #include "access_manager.h"
-enum class DeviceState
-{
-	AVAILABLE,
-	IN_USE,
-	FAULT,
-	RECOVERY,
-	SAFE_STATE,
-};
-class DeviceManager
-{
-private:
-	DeviceState currentState;
-public:
-	DeviceManager();
-	DeviceState getState() const;
-};
-DeviceManager::DeviceManager()
-{
-	currentState=DeviceState::AVAILABLE;
-}
-DeviceState DeviceManager::getState() const
-{
-	return currentState;
-}
+#include <fcntl.h>
+#include <unistd.h>
+#include <cstring>
+
+
 int main()
 {
-	DeviceManager deviceManager;
-	if (deviceManager.getState() == DeviceState::AVAILABLE)
+	const char* devicePath = "/dev/periguard";
+
+	int deviceFd = open(devicePath, O_RDWR);
+
+	if (deviceFd == -1)
 	{
-		std::cout << "Device state: AVAILABLE" << std::endl;
+		std::cerr << "Failed to open PeriGuard device" << std::endl;
+		return 1;
 	}
-	AccessManager accessManager;
-	if (accessManager.requestAccess())
+
+	const char* command = "ACCESS";
+
+	ssize_t bytesWritten = write(deviceFd, command, 6);
+
+	if (bytesWritten == -1)
 	{
-		std::cout << "Access granted" << std::endl;
+		std::cerr << "Failed to write to PeriGuard device" << std::endl;
+		close(deviceFd);
+		return 1;
 	}
-	if (accessManager.requestAccess())
+
+	char buffer[128];
+
+	ssize_t bytesRead = read(deviceFd, buffer, sizeof(buffer)-1);
+
+	if (bytesRead == -1)
 	{
-		std::cout << "Second access granted" << std::endl;
+		std::cerr << "Failed to read from PeriGuard device" << std::endl;
+		close(deviceFd);
+		return 1;
 	}
-	else
+	buffer[bytesRead] = '\0';
+
+	std::cout << "Driver response: " << buffer << std::endl;
+
+	if (strcmp(buffer, "IN_USE\n") == 0)
 	{
-		std::cout << "Second access denied" << std::endl;
+		std::cout << "Driver granted access." << std::endl;
+		const char* releaseCommand = "RELEASE";
+		ssize_t releaseBytes = write(deviceFd, releaseCommand, 7);
+
+		if (releaseBytes == -1)
+		{
+			std::cerr << "Failed to release PeriGuard device" << std::endl;
+			close(deviceFd);
+			return 1;
+		}
 	}
-	accessManager.releaseAccess();
-	if (accessManager.requestAccess())
+	else if (strcmp(buffer, "DENIED\n") == 0)
 	{
-		std::cout << "Access granted after release" << std::endl;
+		std::cout << "Driver denied access." << std::endl;
 	}
+	else if (strcmp(buffer, "AVAILABLE\n") == 0)
+	{
+		std::cout << "Device is available." << std::endl;
+	}
+	close(deviceFd);
 	return 0;
 }
 
