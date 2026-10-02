@@ -17,3 +17,7 @@
 
 # Temporary files
 *.tmp
+
+# PeriGuard executable
+user-space/controller/periguard
+
