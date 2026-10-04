@@ -11,8 +11,8 @@ The project focuses on controlled access to a shared peripheral, device state ma
 The objective of PeriGuard is to develop a small embedded Linux system that can:
 
 - Control access to a shared peripheral.
-- prevent conflicting access from multiple applications.
-- Maintain and monitor the peripheralstate.
+- Prevent conflicting access from multiple applications.
+- Maintain and monitor the peripheral state.
 - Detect predefined device faults.
 - Perform controlled recovery.
 - Move the device to a safe state when recovery is unsuccessful.
@@ -46,24 +46,9 @@ The project includes:
 
 ## System Architecture
 
-The  basic architecture of PeriGuard is:
+The basic architecture of PeriGuard is:
 
-Application
-    |
-    v
-C++ Controller
-    |
-    v
-Linux Character Device Interface
-    |
-    v
-Linux Kernel Module / Device Driver
-    |
-    v
-Simulated Peripheral
-    |
-    v
-State and Fault Management
+Application --> C++ Controller -->  Linux Character Device Interface --> Linux Kernel Module / Device Driver --> Simulated Peripheral --> State and Fault Management
 
 ## Device States
 
@@ -76,16 +61,110 @@ The simulated peripheral follows these main states:
 - SAFE_STATE
 
 Normal operation follows:
+AVAILABLE → IN_USE → AVAILABLE
 
-AVAILABLE -> IN_USE -> AVAILABLE
+A fault condition may cause:
+IN_USE → FAULT → RECOVERY → AVAILABLE
 
-Afault condition may cause:
+If recovery is unsuccessful, the defined fallback state is:
+FAULT → RECOVERY → SAFE_STATE
 
-IN_USE -> FAULT -> RECOVERY -> AVAILABLE
 
-If recovery fails:
+## Build and Run
 
-FAULT -> RECOVERY -> SAFE_STATE
+PeriGuard is developed and tested on Ubuntu Linux. 
+The following steps explain how to build the Linux character device driver, load it into the kernel, verify the device, build the user-space controller, run the controller, and remove the driver after testing.
+
+### 1. Build the Linux Character Device Driver
+
+The PeriGuard driver is compiled as a Linux kernel module using the Linux kernel build system. From the project root, run:
+
+```bash
+make -C /lib/modules/$(uname -r)/build M=$HOME/PeriGuard/driver modules
+```
+
+This command compiles the PeriGuard character device driver and generates the `periguard_driver.ko` kernel module.
+
+### 2. Load the Driver into the Linux Kernel
+
+After building the driver, load the compiled kernel module into the running Linux kernel:
+
+```bash
+sudo insmod driver/src/periguard_driver.ko
+```
+
+The `insmod` command inserts the PeriGuard kernel module into the running kernel. `sudo` is required because loading a kernel module is a privileged operation.
+
+### 3. Verify the Character Device
+
+After loading the driver, verify that the PeriGuard character device has been created:
+
+```bash
+ls -l /dev/periguard
+```
+
+This command checks the `/dev` directory for the PeriGuard device file. The `/dev/periguard` interface is used by the user-space controller to communicate with the kernel driver.
+
+### 4. Build the User-Space Controller
+
+The C++ controller is built separately from the Linux kernel driver. From the project root, enter the user-space directory:
+
+```bash
+cd user-space
+```
+
+The `cd` command changes the current directory to the location containing the user-space source files and Makefile.
+
+Build the controller using the provided Makefile:
+
+```bash
+make
+```
+
+The `make` command compiles the C++ source files and generates the PeriGuard controller executable.
+
+### 5. Run the PeriGuard Controller
+
+After building the controller, run the executable:
+
+```bash
+sudo ./controller/periguard
+```
+
+This starts the PeriGuard user-space controller. The controller communicates with `/dev/periguard`, sends requests to the Linux character device driver, and displays the resulting access and device-state information.
+
+### 6. Remove the Driver
+
+After completing the tests, return to the project root:
+
+```bash
+cd ..
+```
+
+The `cd ..` command moves from the `user-space` directory back to the main PeriGuard project directory.
+
+Unload the PeriGuard kernel module:
+
+```bash
+sudo rmmod periguard_driver
+```
+
+The `rmmod` command removes the PeriGuard driver from the running Linux kernel.
+
+## Test Scenarios
+
+The following test scenarios were used to verify the main functionality of PeriGuard:
+
+| Test Scenario | Expected Result |
+|---|---|
+| Check device status | Device reports `AVAILABLE` |
+| First access request | Access is granted |
+| Second access request while the device is in use | Access is denied |
+| Release the device | Device returns to `AVAILABLE` |
+| Recovery request | Recovery is performed and the device returns to `AVAILABLE` |
+| User-space controller communication | Controller successfully communicates with the character device |
+
+
 
 ## Project Limitation
 
@@ -97,5 +176,6 @@ The final system will demonstrate controlled peripheral access, interaction betw
 
 ## Project Status 
 
-Development in progress.
+Completed prototype.
 
+The project was implemented and tested on Ubuntu Linux using a simulated peripheral and Linux character device driver.
